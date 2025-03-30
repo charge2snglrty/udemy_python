@@ -1,121 +1,90 @@
-import pygame
-import time
-import random
+import os
+import shutil
 
-# Initialize pygame
-pygame.init()
+def clean_temp_files():
+    temp_dirs = [
+        os.getenv('TEMP'),
+        os.getenv('TMP'),
+        os.path.join(os.getenv('SystemRoot'), 'Temp')
+    ]
 
-# Screen dimensions
-WIDTH, HEIGHT = 800, 600
+    for temp_dir in temp_dirs:
+        if temp_dir and os.path.exists(temp_dir):
+            print(f"Cleaning: {temp_dir}")
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    try:
+                        file_path = os.path.join(root, file)
+                        os.remove(file_path)
+                        print(f"Deleted file: {file_path}")
+                    except Exception as e:
+                        print(f"Failed to delete file: {file_path}. Reason: {e}")
+                for dir in dirs:
+                    try:
+                        dir_path = os.path.join(root, dir)
+                        shutil.rmtree(dir_path)
+                        print(f"Deleted directory: {dir_path}")
+                    except Exception as e:
+                        print(f"Failed to delete directory: {dir_path}. Reason: {e}")
+        else:
+            print(f"Temporary directory not found: {temp_dir}")
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (213, 50, 80)
-GREEN = (0, 255, 0)
-BLUE = (50, 153, 213)
+if __name__ == "__main__":
+    clean_temp_files()
 
-# Snake block size
-BLOCK_SIZE = 10
-SNAKE_SPEED = 15
+    class Block:
+        def __init__(self, index, previous_hash, data, timestamp):
+            self.index = index
+            self.previous_hash = previous_hash
+            self.data = data
+            self.timestamp = timestamp
+            self.hash = self.calculate_hash()
 
-# Initialize screen
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Snake Game')
+        def calculate_hash(self):
+            hash_string = f"{self.index}{self.previous_hash}{self.data}{self.timestamp}"
+            return hashlib.sha256(hash_string.encode()).hexdigest()
 
-# Clock
-clock = pygame.time.Clock()
 
-# Font styles
-font_style = pygame.font.SysFont("bahnschrift", 25)
-score_font = pygame.font.SysFont("comicsansms", 35)
+    class Blockchain:
+        def __init__(self):
+            self.chain = [self.create_genesis_block()]
 
-def display_score(score):
-    value = score_font.render(f"Your Score: {score}", True, BLUE)
-    screen.blit(value, [0, 0])
+        def create_genesis_block(self):
+            return Block(0, "0", "Genesis Block", time.time())
 
-def draw_snake(block_size, snake_list):
-    for block in snake_list:
-        pygame.draw.rect(screen, GREEN, [block[0], block[1], block_size, block_size])
+        def get_latest_block(self):
+            return self.chain[-1]
 
-def message(msg, color):
-    mesg = font_style.render(msg, True, color)
-    screen.blit(mesg, [WIDTH / 6, HEIGHT / 3])
+        def add_block(self, data):
+            latest_block = self.get_latest_block()
+            new_block = Block(len(self.chain), latest_block.hash, data, time.time())
+            self.chain.append(new_block)
 
-def game_loop():
-    game_over = False
-    game_close = False
+        def is_chain_valid(self):
+            for i in range(1, len(self.chain)):
+                current_block = self.chain[i]
+                previous_block = self.chain[i - 1]
 
-    x1, y1 = WIDTH / 2, HEIGHT / 2
-    x1_change, y1_change = 0, 0
+                if current_block.hash != current_block.calculate_hash():
+                    return False
+                if current_block.previous_hash != previous_block.hash:
+                    return False
+            return True
 
-    snake_list = []
-    length_of_snake = 1
 
-    food_x = round(random.randrange(0, WIDTH - BLOCK_SIZE) / 10.0) * 10.0
-    food_y = round(random.randrange(0, HEIGHT - BLOCK_SIZE) / 10.0) * 10.0
+    if __name__ == "__main__":
+        blockchain = Blockchain()
+        blockchain.add_block("First Block")
+        blockchain.add_block("Second Block")
 
-    while not game_over:
+        for block in blockchain.chain:
+            print(f"Index: {block.index}")
+            print(f"Previous Hash: {block.previous_hash}")
+            print(f"Hash: {block.hash}")
+            print(f"Data: {block.data}")
+            print(f"Timestamp: {block.timestamp}")
+            print("-" * 30)
 
-        while game_close:
-            screen.fill(BLACK)
-            message("You Lost! Press Q-Quit or C-Play Again", RED)
-            display_score(length_of_snake - 1)
-            pygame.display.update()
+        print("Is blockchain valid?", blockchain.is_chain_valid())
 
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_q:
-                        game_over = True
-                        game_close = False
-                    if event.key == pygame.K_c:
-                        game_loop()
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                game_over = True
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    x1_change = -BLOCK_SIZE
-                    y1_change = 0
-                elif event.key == pygame.K_RIGHT:
-                    x1_change = BLOCK_SIZE
-                    y1_change = 0
-                elif event.key == pygame.K_UP:
-                    y1_change = -BLOCK_SIZE
-                    x1_change = 0
-                elif event.key == pygame.K_DOWN:
-                    y1_change = BLOCK_SIZE
-                    x1_change = 0
-
-        if x1 >= WIDTH or x1 < 0 or y1 >= HEIGHT or y1 < 0:
-            game_close = True
-        x1 += x1_change
-        y1 += y1_change
-        screen.fill(BLACK)
-        pygame.draw.rect(screen, WHITE, [food_x, food_y, BLOCK_SIZE, BLOCK_SIZE])
-        snake_head = [x1, y1]
-        snake_list.append(snake_head)
-        if len(snake_list) > length_of_snake:
-            del snake_list[0]
-
-        for block in snake_list[:-1]:
-            if block == snake_head:
-                game_close = True
-
-        draw_snake(BLOCK_SIZE, snake_list)
-        display_score(length_of_snake - 1)
-
-        pygame.display.update()
-
-        if x1 == food_x and y1 == food_y:
-            food_x = round(random.randrange(0, WIDTH - BLOCK_SIZE) / 10.0) * 10.0
-            food_y = round(random.randrange(0, HEIGHT - BLOCK_SIZE) / 10.0) * 10.0
-            length_of_snake += 1
-
-        clock.tick(SNAKE_SPEED)
-
-    pygame.quit()
-    quit()
-
-game_loop()
+        
